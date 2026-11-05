@@ -1,0 +1,192 @@
+
+const form = document.querySelector('#task-form');
+const input = document.querySelector('#task-input');
+const list = document.querySelector('#task-list');
+const error = document.querySelector('#error');
+const emptyState = document.querySelector('#empty-state');
+const filtro = document.querySelector('#task-filter');
+
+const CLAVE_TAREAS = 'misTareas';
+
+// Guardar las tareas en el navegador
+function guardarTareas() {
+    const tareas = [];
+
+    list.querySelectorAll('.tarea').forEach(function(tarea) {
+        tareas.push({
+            texto: tarea.querySelector('.texto-tarea').textContent,
+            estado: tarea.dataset.estado
+        });
+    });
+
+    localStorage.setItem(CLAVE_TAREAS, JSON.stringify(tareas));
+}
+
+// Actualizar la lista según el filtro
+function aplicarFiltro() {
+    const estadoSeleccionado = filtro.value;
+
+    list.querySelectorAll('.tarea').forEach(function(tarea) {
+        tarea.hidden =
+            estadoSeleccionado !== 'todas' &&
+            tarea.dataset.estado !== estadoSeleccionado;
+    });
+}
+
+// Crear una tarea
+function crearTarea(texto, estadoInicial = 'por-realizar') {
+    const tarea = document.createElement('li');
+    tarea.classList.add('tarea');
+    tarea.dataset.estado = estadoInicial;
+
+    // Texto
+    const textoTarea = document.createElement('span');
+    textoTarea.classList.add('texto-tarea');
+    textoTarea.textContent = texto;
+    tarea.appendChild(textoTarea);
+
+    // Marcador de estado
+    const estado = document.createElement('span');
+    estado.classList.add('estado');
+    tarea.appendChild(estado);
+
+    // Botón para cambiar estado
+    const botonEstado = document.createElement('button');
+    botonEstado.textContent = 'Cambiar estado';
+    botonEstado.type = 'button';
+
+    // Botón para completar o reabrir
+    const botonCompletar = document.createElement('button');
+    botonCompletar.type = 'button';
+    botonCompletar.classList.add('boton-completar');
+
+    // Actualizar el aspecto según el estado
+    function actualizarEstado() {
+        if (tarea.dataset.estado === 'completada') {
+            estado.textContent = 'Completada';
+            estado.className = 'estado completada';
+            tarea.classList.add('completed');
+            botonCompletar.textContent = '↩';
+            botonEstado.disabled = true;
+        } else {
+            tarea.classList.remove('completed');
+            botonEstado.disabled = false;
+            botonCompletar.textContent = '✓';
+
+            if (tarea.dataset.estado === 'en-curso') {
+                estado.textContent = 'En curso';
+                estado.className = 'estado en-curso';
+            } else {
+                estado.textContent = 'Por realizar';
+                estado.className = 'estado por-realizar';
+            }
+        }
+    }
+
+    actualizarEstado();
+
+    // Cambiar entre pendiente y en curso
+    botonEstado.addEventListener('click', function() {
+        if (tarea.dataset.estado === 'por-realizar') {
+            tarea.dataset.estado = 'en-curso';
+        } else if (tarea.dataset.estado === 'en-curso') {
+            tarea.dataset.estado = 'por-realizar';
+        }
+
+        actualizarEstado();
+        aplicarFiltro();
+        guardarTareas();
+    });
+
+    // Completar o devolver a pendiente
+    botonCompletar.addEventListener('click', function() {
+        if (tarea.dataset.estado !== 'completada') {
+            tarea.dataset.estado = 'completada';
+        } else {
+            tarea.dataset.estado = 'por-realizar';
+        }
+
+        actualizarEstado();
+        aplicarFiltro();
+        guardarTareas();
+    });
+
+    tarea.appendChild(botonEstado);
+    tarea.appendChild(botonCompletar);
+
+    // Botón para eliminar
+    const botonEliminar = document.createElement('button');
+    botonEliminar.textContent = 'Eliminar';
+    botonEliminar.type = 'button';
+    botonEliminar.classList.add('boton-eliminar');
+
+    botonEliminar.addEventListener('click', function() {
+        tarea.remove();
+
+        emptyState.hidden = list.children.length !== 0;
+
+        aplicarFiltro();
+        guardarTareas();
+    });
+
+    tarea.appendChild(botonEliminar);
+
+    list.appendChild(tarea);
+}
+
+// Añadir tareas
+form.addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    const texto = input.value.trim();
+
+    if (texto === '') {
+        error.textContent = 'Escribe una tarea antes de añadirla';
+        return;
+    }
+
+    error.textContent = '';
+
+    crearTarea(texto);
+
+    input.value = '';
+    emptyState.hidden = true;
+
+    aplicarFiltro();
+    guardarTareas();
+});
+
+// Cambiar el filtro
+filtro.addEventListener('change', aplicarFiltro);
+
+// Recuperar las tareas guardadas al abrir la página
+function cargarTareas() {
+    const datosGuardados = localStorage.getItem(CLAVE_TAREAS);
+
+    if (datosGuardados !== null) {
+        try {
+            const tareasGuardadas = JSON.parse(datosGuardados);
+
+            if (Array.isArray(tareasGuardadas)) {
+                tareasGuardadas.forEach(function(tarea) {
+                    if (
+                        tarea &&
+                        typeof tarea.texto === 'string' &&
+                        ['por-realizar', 'en-curso', 'completada']
+                            .includes(tarea.estado)
+                    ) {
+                        crearTarea(tarea.texto, tarea.estado);
+                    }
+                });
+            }
+        } catch (errorLectura) {
+            console.error('No se pudieron recuperar las tareas guardadas.');
+        }
+    }
+
+    emptyState.hidden = list.children.length !== 0;
+    aplicarFiltro();
+}
+
+// Ejecutar al cargar la página
+cargarTareas();
